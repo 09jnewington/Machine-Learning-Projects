@@ -1,0 +1,86 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import SGDRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+import sklearn
+
+
+np.set_printoptions(precision=2)
+
+df = pd.read_csv(r'C:\Users\joshi\OneDrive\Desktop\ML Projects\Life Expectancy Data.csv')
+
+y_data = df['Life expectancy ']
+x_data = df.drop(['Life expectancy ', 'Country', 'Status'], axis=1)
+
+# Fill missing values
+# For numeric columns, use median; for categorical, use the most frequent value
+numeric_features = x_data.select_dtypes(include=['int64', 'float64']).columns
+categorical_features = x_data.select_dtypes(include=['object']).columns
+
+numeric_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())])
+
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))])
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numeric_transformer, numeric_features),
+        ('cat', categorical_transformer, categorical_features)])
+
+
+
+x_data = preprocessor.fit_transform(x_data)
+
+# Pipeline for y_data
+y_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='median')),  # Replace 'median' with 'mean' if that's preferred
+    ('scaler', StandardScaler())
+])
+
+# Fit and transform y_data
+y_data = y_transformer.fit_transform(y_data.values.reshape(-1, 1))  # Reshape for a single column
+
+y_data = np.ravel(y_data)
+
+m = len(y_data)
+
+scaler = StandardScaler()
+X_norm = scaler.fit_transform(x_data)
+
+sgdr = SGDRegressor(max_iter=1000)
+sgdr.fit(X_norm, y_data)
+
+print(sgdr)
+print(f"number of iterations completed: {sgdr.n_iter_}, number of weight updates: {sgdr.t_}")
+
+b_norm = sgdr.intercept_
+w_norm = sgdr.coef_
+print(f"model parameters:                   w: {w_norm}, b:{b_norm}")
+
+# make a prediction using sgdr.predict()
+y_pred_sgd = sgdr.predict(X_norm)
+# make a prediction using w,b. 
+y_pred = np.dot(X_norm, w_norm) + b_norm  
+print(f"prediction using np.dot() and sgdr.predict match: {(y_pred == y_pred_sgd).all()}")
+
+print(f"Prediction on training set:\n{y_pred[:4]}" )
+print(f"Target values \n{y_data[:4]}")
+
+X_features = ['Year','Adult Mortality','infant deaths','Alcohol','percentage expenditure','Hepatitis B','Measles ', 'BMI' ,'under-five deaths' ,'Polio','Total expenditure','Diphtheria ', 'HIV/AIDS','GDP','Population', 'thinness  1-19 years', 'thinness 5-9 years','Income composition of resources','Schooling']
+
+fig,ax=plt.subplots(1,4,figsize=(12,3),sharey=True)
+for i in range(len(ax)):
+    ax[i].scatter(x_data[:,i],y_data, label = 'target')
+    ax[i].set_xlabel(X_features[i])
+    ax[i].scatter(x_data[:,i],y_pred, label = 'predict')
+ax[0].set_ylabel("Life Expectancy"); ax[0].legend();
+fig.suptitle("target versus prediction using z-score normalized model")
+plt.show()
